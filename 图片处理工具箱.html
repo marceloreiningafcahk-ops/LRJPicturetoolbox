@@ -940,89 +940,112 @@
     </div>
 
     <script>
-        // --- 水印背景：纹理平铺滚动 + 轻量鼠标高亮 ---
+        // --- 水印背景：高帧率流动 + 鼠标隆起高亮 ---
         (function() {
             const canvas = document.getElementById('watermark-canvas');
             if (!canvas) return;
-            const ctx = canvas.getContext('2d', { alpha: true });
+            const ctx = canvas.getContext('2d');
+
             const text = '骆易家';
-            const tileSize = 220;
-            const dprCap = 1.5;
-            let dpr = Math.min(window.devicePixelRatio || 1, dprCap);
-            let w = 0;
-            let h = 0;
-            let pattern = null;
-            let rafId = null;
+            const baseFontSize = 26;
+            const maxFontSize = 42;
+            const stepX = 100;
+            const stepY = 70;
+            const influenceRadius = 180;
+            const lightBase = 0.05;
+            const darkBase = 0.05;
+            const lightHighlight = 0.22;
+            const darkHighlight = 0.25;
+            const cos45 = 0.7071067811865476;
+            const sin45 = 0.7071067811865476;
+            const influenceRadiusSq = influenceRadius * influenceRadius;
+            const baseFontStr = `700 ${baseFontSize}px "Noto Serif SC", serif`;
+
             let mouseX = -9999;
             let mouseY = -9999;
             let smoothMouseX = -9999;
             let smoothMouseY = -9999;
+            let dpr = window.devicePixelRatio || 1;
+            let w = 0;
+            let h = 0;
+            let time = 0;
+            let rafId = null;
             let lastTs = 0;
-            let offset = 0;
-            const speed = 18; // px/s，慢速持续滚动
-
-            function makePattern() {
-                const isDark = document.documentElement.classList.contains('dark-mode');
-                const tile = document.createElement('canvas');
-                tile.width = tileSize;
-                tile.height = tileSize;
-                const tctx = tile.getContext('2d');
-                tctx.clearRect(0, 0, tileSize, tileSize);
-                tctx.translate(tileSize / 2, tileSize / 2);
-                tctx.rotate(Math.PI / 4);
-                tctx.textAlign = 'center';
-                tctx.textBaseline = 'middle';
-                tctx.font = '700 32px "Noto Serif SC", serif';
-                tctx.fillStyle = isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.05)';
-                tctx.fillText(text, 0, 0);
-                tctx.fillText(text, -tileSize, 0);
-                tctx.fillText(text, tileSize, 0);
-                pattern = ctx.createPattern(tile, 'repeat');
-            }
 
             function resize() {
-                dpr = Math.min(window.devicePixelRatio || 1, dprCap);
+                dpr = window.devicePixelRatio || 1;
                 w = window.innerWidth;
                 h = window.innerHeight;
                 canvas.width = Math.max(1, Math.round(w * dpr));
                 canvas.height = Math.max(1, Math.round(h * dpr));
                 canvas.style.width = w + 'px';
                 canvas.style.height = h + 'px';
-                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-                makePattern();
             }
 
             function draw(ts) {
                 rafId = requestAnimationFrame(draw);
                 if (!lastTs) lastTs = ts;
-                const delta = Math.min(48, ts - lastTs) / 1000;
+                const delta = Math.min(40, ts - lastTs) / 16.6667;
                 lastTs = ts;
-                offset = (offset + speed * delta) % tileSize;
+                time += 0.005 * delta;
 
-                if (smoothMouseX < -999) {
-                    smoothMouseX = mouseX;
-                    smoothMouseY = mouseY;
-                }
-                smoothMouseX += (mouseX - smoothMouseX) * 0.16;
-                smoothMouseY += (mouseY - smoothMouseY) * 0.16;
+                const speed = 0.6;
+                const driftLen = 120;
+                const progress = ((time * speed * 60) % (driftLen * 2));
+                const pingpong = progress < driftLen ? progress : driftLen * 2 - progress;
+                const driftX = pingpong * cos45;
+                const driftY = pingpong * sin45;
+
+                if (smoothMouseX < -999) { smoothMouseX = mouseX; smoothMouseY = mouseY; }
+                smoothMouseX += (mouseX - smoothMouseX) * 0.18;
+                smoothMouseY += (mouseY - smoothMouseY) * 0.18;
+
+                const isDark = document.documentElement.classList.contains('dark-mode');
+                const baseAlpha = isDark ? darkBase : lightBase;
+                const highlightAlpha = isDark ? darkHighlight : lightHighlight;
+                const baseChannel = isDark ? 255 : 0;
+                const baseFillStyle = `rgba(${baseChannel},${baseChannel},${baseChannel},${baseAlpha.toFixed(3)})`;
 
                 ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
                 ctx.clearRect(0, 0, w, h);
-                if (pattern) {
-                    ctx.save();
-                    ctx.translate(offset * 0.707, offset * 0.707);
-                    ctx.fillStyle = pattern;
-                    ctx.fillRect(-tileSize, -tileSize, w + tileSize * 2, h + tileSize * 2);
-                    ctx.restore();
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = baseFontStr;
+                ctx.fillStyle = baseFillStyle;
+
+                const nearCells = [];
+                for (let row = -2; row * stepY < h + stepY * 2; row++) {
+                    for (let col = -2; col * stepX < w + stepX * 2; col++) {
+                        const bx = col * stepX + driftX;
+                        const by = row * stepY + driftY;
+                        const dx = bx - smoothMouseX;
+                        const dy = by - smoothMouseY;
+                        const distSq = dx * dx + dy * dy;
+                        if (distSq >= influenceRadiusSq) {
+                            ctx.setTransform(cos45 * dpr, sin45 * dpr, -sin45 * dpr, cos45 * dpr, bx * dpr, by * dpr);
+                            ctx.fillText(text, 0, 0);
+                        } else {
+                            nearCells.push(bx, by, distSq);
+                        }
+                    }
                 }
 
-                if (smoothMouseX > -999) {
-                    const isDark = document.documentElement.classList.contains('dark-mode');
-                    const glow = ctx.createRadialGradient(smoothMouseX, smoothMouseY, 0, smoothMouseX, smoothMouseY, 180);
-                    glow.addColorStop(0, isDark ? 'rgba(255,120,50,0.12)' : 'rgba(255,79,0,0.11)');
-                    glow.addColorStop(1, 'rgba(255,79,0,0)');
-                    ctx.fillStyle = glow;
-                    ctx.fillRect(smoothMouseX - 180, smoothMouseY - 180, 360, 360);
+                const hlR = 120, hlG = 80, hlB = 50;
+                for (let i = 0; i < nearCells.length; i += 3) {
+                    const bx = nearCells[i];
+                    const by = nearCells[i + 1];
+                    const dist = Math.sqrt(nearCells[i + 2]);
+                    let t = 1 - dist / influenceRadius;
+                    t = t * t * (3 - 2 * t);
+                    const fontSize = baseFontSize + (maxFontSize - baseFontSize) * t;
+                    const alpha = baseAlpha + (highlightAlpha - baseAlpha) * t;
+                    const r = (baseChannel + (hlR - baseChannel) * t) | 0;
+                    const g = (baseChannel + (hlG - baseChannel) * t) | 0;
+                    const b = (baseChannel + (hlB - baseChannel) * t) | 0;
+                    ctx.font = `700 ${fontSize.toFixed(1)}px "Noto Serif SC", serif`;
+                    ctx.fillStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
+                    ctx.setTransform(cos45 * dpr, sin45 * dpr, -sin45 * dpr, cos45 * dpr, bx * dpr, by * dpr);
+                    ctx.fillText(text, 0, 0);
                 }
             }
 
@@ -1056,8 +1079,6 @@
                     resize();
                 });
             });
-
-            window.addEventListener('image-toolbox-theme-change', makePattern);
 
             function start() {
                 resize();
@@ -2072,6 +2093,8 @@
             stitchLayout = layout;
             document.getElementById('stitch-layout-long').classList.toggle('active', layout === 'long');
             document.getElementById('stitch-layout-grid').classList.toggle('active', layout === 'grid');
+            document.getElementById('btn-stitch').textContent = layout === 'grid' ? '下载多宫格拼图' : '下载结果图';
+            document.getElementById('btn-stitch-png').style.display = layout === 'grid' ? 'none' : 'flex';
             document.getElementById('stitch-long-options').style.display = layout === 'long' ? 'block' : 'none';
             document.getElementById('stitch-grid-options').style.display = layout === 'grid' ? 'block' : 'none';
             document.getElementById('grid-size-options').style.display = layout === 'grid' ? 'flex' : 'none';
@@ -2079,6 +2102,7 @@
             document.getElementById('grid-fit-options').style.display = layout === 'grid' ? 'flex' : 'none';
             document.getElementById('stitch-unify-label').textContent = layout === 'grid' ? '最多使用张数' : '统一宽度 (px)';
             document.getElementById('stitch-unify-w').placeholder = layout === 'grid' ? '留空=全部图片' : '留空=自适应';
+            if (layout === 'grid') document.getElementById('stitch-gap').value = 0;
             updateStitchPreview();
         }
 
@@ -2256,6 +2280,7 @@
     </script>
 </body>
 </html>
+
 
 
 
