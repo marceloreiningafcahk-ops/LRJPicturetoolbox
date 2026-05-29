@@ -656,8 +656,7 @@
             <button class="segment-btn main-tab-btn" onclick="switchTab('scale')">批量缩放</button>
             <button class="segment-btn main-tab-btn" onclick="switchTab('crop')">批量裁切</button>
             <button class="segment-btn main-tab-btn" onclick="switchTab('convert')">转PNG</button>
-            <button class="segment-btn main-tab-btn" onclick="switchTab('stitch')">图片拼接</button>
-            <button class="segment-btn main-tab-btn" onclick="switchTab('collage')">拼图</button>
+            <button class="segment-btn main-tab-btn" onclick="switchTab('stitch')">拼接拼图</button>
         </div>
 
         <div id="tab-slice" class="tab-content active">
@@ -817,13 +816,13 @@
             </div>
         </div>
 
-        <!-- ================= 图片拼接 Tab ================= -->
+        <!-- ================= 拼接拼图 Tab ================= -->
         <div id="tab-stitch" class="tab-content">
             <div class="card">
                 <label for="upload-stitch" class="upload-area">
                     <svg class="upload-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/><rect x="2" y="14" width="20" height="8" rx="1"/></svg>
                     <div class="upload-title" id="title-stitch">选择或拖拽多张图片</div>
-                    <div class="upload-subtitle">按上传顺序拼接，可拖拽排序 (支持 HEIC)</div>
+                    <div class="upload-subtitle">长图拼接或多宫格拼图，可拖拽排序 (支持 HEIC)</div>
                 </label>
                 <input type="file" id="upload-stitch" accept="image/*,.heic,.heif,.jfif" multiple>
 
@@ -833,8 +832,35 @@
                 <!-- 拼接选项 -->
                 <div id="stitch-options" style="display:none;">
                     <div class="segmented-control segmented-control-small" style="margin-bottom:12px;">
-                        <button class="segment-btn active" id="stitch-dir-v" onclick="setStitchDir('vertical')">竖向拼接</button>
-                        <button class="segment-btn" id="stitch-dir-h" onclick="setStitchDir('horizontal')">横向拼接</button>
+                        <button class="segment-btn active" id="stitch-layout-long" onclick="setStitchLayout('long')">长图拼接</button>
+                        <button class="segment-btn" id="stitch-layout-grid" onclick="setStitchLayout('grid')">多宫格拼图</button>
+                    </div>
+
+                    <div id="stitch-long-options">
+                        <div class="segmented-control segmented-control-small" style="margin-bottom:12px;">
+                            <button class="segment-btn active" id="stitch-dir-v" onclick="setStitchDir('vertical')">竖向拼接</button>
+                            <button class="segment-btn" id="stitch-dir-h" onclick="setStitchDir('horizontal')">横向拼接</button>
+                        </div>
+                    </div>
+
+                    <div id="stitch-grid-options" style="display:none;">
+                        <div class="segmented-control segmented-control-small" style="margin-bottom:12px;">
+                            <button class="segment-btn" id="grid-preset-2" onclick="setGridPreset(2)">二宫格</button>
+                            <button class="segment-btn" id="grid-preset-4" onclick="setGridPreset(4)">四宫格</button>
+                            <button class="segment-btn" id="grid-preset-6" onclick="setGridPreset(6)">六宫格</button>
+                            <button class="segment-btn active" id="grid-preset-9" onclick="setGridPreset(9)">九宫格</button>
+                        </div>
+                    </div>
+
+                    <div class="input-group" id="grid-size-options" style="display:none;">
+                        <div class="input-field">
+                            <label>列数</label>
+                            <input type="number" id="grid-cols" value="3" min="1" max="8">
+                        </div>
+                        <div class="input-field">
+                            <label>单格尺寸 (px)</label>
+                            <input type="number" id="grid-cell" value="360" min="80" max="1200">
+                        </div>
                     </div>
 
                     <div class="input-group">
@@ -858,15 +884,42 @@
                             </select>
                         </div>
                         <div class="input-field">
-                            <label>统一宽度 (px)</label>
+                            <label id="stitch-unify-label">统一宽度 (px)</label>
                             <input type="number" id="stitch-unify-w" value="" min="0" placeholder="留空=自适应">
                         </div>
                     </div>
 
+                    <div class="input-group" id="grid-style-options" style="display:none;">
+                        <div class="input-field">
+                            <label>外边距 (px)</label>
+                            <input type="number" id="grid-padding" value="24" min="0" max="200">
+                        </div>
+                        <div class="input-field">
+                            <label>圆角 (px)</label>
+                            <input type="number" id="grid-radius" value="12" min="0" max="120">
+                        </div>
+                    </div>
+
+                    <div class="input-group" id="grid-fit-options" style="display:none;">
+                        <div class="input-field">
+                            <label>填充方式</label>
+                            <select id="grid-fit">
+                                <option value="cover">填满裁切</option>
+                                <option value="contain">完整留白</option>
+                            </select>
+                        </div>
+                        <div class="input-field">
+                            <label>导出格式</label>
+                            <select id="grid-format">
+                                <option value="png">PNG</option>
+                                <option value="jpg">JPG</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <div class="info-box">
-                        💡 竖向拼接：所有图统一宽度后上下拼接<br>
-                        💡 横向拼接：所有图统一高度后左右拼接<br>
-                        💡 设「统一宽度」可强制所有图等宽（竖拼推荐填 800）
+                        💡 长图拼接适合详情页、聊天截图和横向对比<br>
+                        💡 多宫格拼图适合二宫格、四宫格、六宫格、九宫格海报
                     </div>
                 </div>
 
@@ -878,83 +931,8 @@
                     <canvas id="stitch-preview-canvas" style="width:100%;border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);"></canvas>
                 </div>
 
-                <button id="btn-stitch" class="btn btn-primary" disabled>下载拼接图</button>
+                <button id="btn-stitch" class="btn btn-primary" disabled>下载结果图</button>
                 <button id="btn-stitch-png" class="btn btn-secondary" disabled>下载为 PNG</button>
-            </div>
-        </div>
-
-
-        <!-- ================= 拼图 Tab ================= -->
-        <div id="tab-collage" class="tab-content">
-            <div class="card">
-                <label for="upload-collage" class="upload-area">
-                    <svg class="upload-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-                    <div class="upload-title" id="title-collage">选择或拖拽多张图片</div>
-                    <div class="upload-subtitle">自动排版成网格拼图，可调列数、间距、圆角和背景色</div>
-                </label>
-                <input type="file" id="upload-collage" accept="image/*,.heic,.heif,.jfif" multiple>
-
-                <p class="hint" style="text-align:left; margin:0 0 8px 4px; display:none;" id="thumb-hint-collage">拖拽缩略图排序，点击删除 👇</p>
-                <div id="thumb-collage" class="thumbnail-list"></div>
-
-                <div id="collage-options" style="display:none;">
-                    <div class="input-group">
-                        <div class="input-field">
-                            <label>列数</label>
-                            <input type="number" id="collage-cols" value="3" min="1" max="8">
-                        </div>
-                        <div class="input-field">
-                            <label>单格尺寸 (px)</label>
-                            <input type="number" id="collage-cell" value="360" min="80" max="1200">
-                        </div>
-                    </div>
-                    <div class="input-group">
-                        <div class="input-field">
-                            <label>间距 (px)</label>
-                            <input type="number" id="collage-gap" value="12" min="0" max="120">
-                        </div>
-                        <div class="input-field">
-                            <label>外边距 (px)</label>
-                            <input type="number" id="collage-padding" value="24" min="0" max="200">
-                        </div>
-                    </div>
-                    <div class="input-group">
-                        <div class="input-field">
-                            <label>圆角 (px)</label>
-                            <input type="number" id="collage-radius" value="12" min="0" max="120">
-                        </div>
-                        <div class="input-field">
-                            <label>背景色</label>
-                            <input type="color" id="collage-bg-color" value="#ffffff">
-                        </div>
-                    </div>
-                    <div class="input-group">
-                        <div class="input-field">
-                            <label>填充方式</label>
-                            <select id="collage-fit">
-                                <option value="cover">填满裁切</option>
-                                <option value="contain">完整留白</option>
-                            </select>
-                        </div>
-                        <div class="input-field">
-                            <label>导出格式</label>
-                            <select id="collage-format">
-                                <option value="png">PNG</option>
-                                <option value="jpg">JPG</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="preview-section-collage" class="preview-section" style="display:none;">
-                    <div class="preview-header">
-                        <span>拼图预览</span>
-                        <span class="preview-badge" id="badge-collage">0</span>
-                    </div>
-                    <canvas id="collage-preview-canvas" style="width:100%;border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);"></canvas>
-                </div>
-
-                <button id="btn-collage" class="btn btn-primary" disabled>下载拼图</button>
             </div>
         </div>
 
@@ -1277,7 +1255,6 @@
         setupDragDrop('label[for="upload-crop"]', 'upload-crop');
         setupDragDrop('label[for="upload-convert"]', 'upload-convert');
         setupDragDrop('label[for="upload-stitch"]', 'upload-stitch');
-        setupDragDrop('label[for="upload-collage"]', 'upload-collage');
 
         // --- 核心共用方法 ---
         function switchTab(tabId) {
@@ -2053,20 +2030,22 @@
             if(q.length) triggerZipDownload(q, '骆易家_转PNG.zip', this, '打包下载为 ZIP');
         });
 
-        // ================= 逻辑 5: 图片拼接 =================
+        // ================= 逻辑 5: 拼接拼图 =================
         let stitchImages = [];   // { img, file, name, dataUrl }
+        let stitchLayout = 'long'; // 'long' | 'grid'
         let stitchDir = 'vertical'; // 'vertical' | 'horizontal'
         let stitchDragSrc = null;
 
-        // --- 上传 ---
         document.getElementById('upload-stitch').addEventListener('change', async function(e) {
             const files = Array.from(e.target.files);
             if (!files.length) return;
 
+            document.getElementById('title-stitch').textContent = '正在读取图片...';
             for (const file of files) {
                 const obj = await loadImage(file);
                 stitchImages.push(obj);
             }
+            document.getElementById('title-stitch').textContent = `已成功读取 ${stitchImages.length} 张图片`;
             renderStitchThumbs();
             updateStitchPreview();
             document.getElementById('stitch-options').style.display = 'block';
@@ -2075,17 +2054,11 @@
             this.value = '';
         });
 
-        // --- 缩略图渲染（支持拖拽排序 + 点击删除） ---
         function renderStitchThumbs() {
             const container = document.getElementById('thumb-stitch');
             const hint = document.getElementById('thumb-hint-stitch');
             container.innerHTML = '';
-
-            if (stitchImages.length > 0) {
-                hint.style.display = 'block';
-            } else {
-                hint.style.display = 'none';
-            }
+            hint.style.display = stitchImages.length ? 'block' : 'none';
 
             stitchImages.forEach((item, i) => {
                 const div = document.createElement('div');
@@ -2094,7 +2067,6 @@
                 div.dataset.index = i;
                 div.innerHTML = `<img src="${item.dataUrl}"><span style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.55);color:#fff;font-size:10px;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;">✕</span>`;
 
-                // 拖拽排序
                 div.addEventListener('dragstart', (e) => {
                     stitchDragSrc = i;
                     e.dataTransfer.effectAllowed = 'move';
@@ -2117,8 +2089,6 @@
                         updateStitchPreview();
                     }
                 });
-
-                // 点击删除
                 div.querySelector('span').addEventListener('click', (e) => {
                     e.stopPropagation();
                     stitchImages.splice(i, 1);
@@ -2129,6 +2099,7 @@
                         document.getElementById('preview-section-stitch').style.display = 'none';
                         document.getElementById('btn-stitch').disabled = true;
                         document.getElementById('btn-stitch-png').disabled = true;
+                        document.getElementById('title-stitch').textContent = '选择或拖拽多张图片';
                     }
                 });
 
@@ -2136,7 +2107,20 @@
             });
         }
 
-        // --- 方向切换 ---
+        function setStitchLayout(layout) {
+            stitchLayout = layout;
+            document.getElementById('stitch-layout-long').classList.toggle('active', layout === 'long');
+            document.getElementById('stitch-layout-grid').classList.toggle('active', layout === 'grid');
+            document.getElementById('stitch-long-options').style.display = layout === 'long' ? 'block' : 'none';
+            document.getElementById('stitch-grid-options').style.display = layout === 'grid' ? 'block' : 'none';
+            document.getElementById('grid-size-options').style.display = layout === 'grid' ? 'flex' : 'none';
+            document.getElementById('grid-style-options').style.display = layout === 'grid' ? 'flex' : 'none';
+            document.getElementById('grid-fit-options').style.display = layout === 'grid' ? 'flex' : 'none';
+            document.getElementById('stitch-unify-label').textContent = layout === 'grid' ? '最多使用张数' : '统一宽度 (px)';
+            document.getElementById('stitch-unify-w').placeholder = layout === 'grid' ? '留空=全部图片' : '留空=自适应';
+            updateStitchPreview();
+        }
+
         function setStitchDir(dir) {
             stitchDir = dir;
             document.getElementById('stitch-dir-v').classList.toggle('active', dir === 'vertical');
@@ -2144,184 +2128,20 @@
             updateStitchPreview();
         }
 
-        // --- 实时预览 ---
-        function updateStitchPreview() {
-            if (stitchImages.length === 0) return;
-
-            const canvas = document.getElementById('stitch-preview-canvas');
-            const ctx = canvas.getContext('2d');
-            const gap = parseInt(document.getElementById('stitch-gap').value) || 0;
-            const bgColor = document.getElementById('stitch-bg-color').value;
-            const align = document.getElementById('stitch-align').value;
-            const unifyW = parseInt(document.getElementById('stitch-unify-w').value) || 0;
-
-            const imgs = stitchImages.map(item => item.img);
-
-            if (stitchDir === 'vertical') {
-                // 竖向拼接：统一宽度，上下排列
-                let targetW;
-                if (unifyW > 0) {
-                    targetW = unifyW;
-                } else {
-                    targetW = Math.max(...imgs.map(img => img.naturalWidth));
-                }
-
-                const scaledImgs = imgs.map(img => {
-                    const scale = targetW / img.naturalWidth;
-                    return { w: targetW, h: Math.round(img.naturalHeight * scale) };
-                });
-
-                const totalH = scaledImgs.reduce((s, im) => s + im.h, 0) + gap * (imgs.length - 1);
-                canvas.width = targetW;
-                canvas.height = totalH;
-
-                ctx.fillStyle = bgColor;
-                ctx.fillRect(0, 0, targetW, totalH);
-
-                let y = 0;
-                imgs.forEach((img, i) => {
-                    const si = scaledImgs[i];
-                    let x = 0;
-                    if (align === 'center') x = (targetW - si.w) / 2;
-                    else if (align === 'end') x = targetW - si.w;
-                    ctx.drawImage(img, x, y, si.w, si.h);
-                    y += si.h + gap;
-                });
-            } else {
-                // 横向拼接：统一高度，左右排列
-                let targetH;
-                if (unifyW > 0) {
-                    // 横拼时 unifyW 作为统一高度
-                    targetH = unifyW;
-                } else {
-                    targetH = Math.max(...imgs.map(img => img.naturalHeight));
-                }
-
-                const scaledImgs = imgs.map(img => {
-                    const scale = targetH / img.naturalHeight;
-                    return { w: Math.round(img.naturalWidth * scale), h: targetH };
-                });
-
-                const totalW = scaledImgs.reduce((s, im) => s + im.w, 0) + gap * (imgs.length - 1);
-                canvas.width = totalW;
-                canvas.height = targetH;
-
-                ctx.fillStyle = bgColor;
-                ctx.fillRect(0, 0, totalW, targetH);
-
-                let x = 0;
-                imgs.forEach((img, i) => {
-                    const si = scaledImgs[i];
-                    let y = 0;
-                    if (align === 'center') y = (targetH - si.h) / 2;
-                    else if (align === 'end') y = targetH - si.h;
-                    ctx.drawImage(img, x, y, si.w, si.h);
-                    x += si.w + gap;
-                });
-            }
-
-            document.getElementById('preview-section-stitch').style.display = 'block';
-        }
-
-        // 实时更新预览(rAF 节流,避免 input 高频触发巨型 canvas 重绘)
-        const updateStitchPreviewThrottled = rafThrottle(updateStitchPreview);
-        ['stitch-gap', 'stitch-bg-color', 'stitch-align', 'stitch-unify-w'].forEach(id => {
-            document.getElementById(id).addEventListener('input', updateStitchPreviewThrottled);
-            document.getElementById(id).addEventListener('change', updateStitchPreviewThrottled);
-        });
-
-        // --- 下载 ---
-        function downloadStitch(format) {
-            const canvas = document.getElementById('stitch-preview-canvas');
-            if (canvas.width === 0) return;
-            const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
-            const ext = format === 'png' ? '.png' : '.jpg';
-            const link = document.createElement('a');
-            link.href = canvas.toDataURL(mimeType, 0.92);
-            link.download = '骆易家_拼接图' + ext;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        document.getElementById('btn-stitch').addEventListener('click', function() {
-            downloadStitch('jpg');
-        });
-        document.getElementById('btn-stitch-png').addEventListener('click', function() {
-            downloadStitch('png');
-        });
-
-        // ================= 逻辑 6: 网格拼图 =================
-        let collageImages = [];
-        let collageDragSrc = null;
-
-        document.getElementById('upload-collage').addEventListener('change', async function(e) {
-            const files = Array.from(e.target.files);
-            if (!files.length) return;
-
-            document.getElementById('title-collage').textContent = '正在读取图片...';
-            for (const file of files) {
-                const obj = await loadImage(file);
-                collageImages.push(obj);
-            }
-            document.getElementById('title-collage').textContent = `已成功读取 ${collageImages.length} 张图片`;
-            renderCollageThumbs();
-            updateCollagePreview();
-            document.getElementById('collage-options').style.display = 'block';
-            document.getElementById('btn-collage').disabled = collageImages.length === 0;
-            this.value = '';
-        });
-
-        function renderCollageThumbs() {
-            const container = document.getElementById('thumb-collage');
-            const hint = document.getElementById('thumb-hint-collage');
-            container.innerHTML = '';
-            hint.style.display = collageImages.length ? 'block' : 'none';
-
-            collageImages.forEach((item, i) => {
-                const div = document.createElement('div');
-                div.className = 'thumbnail-item';
-                div.draggable = true;
-                div.dataset.index = i;
-                div.innerHTML = `<img src="${item.dataUrl}"><span style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.55);color:#fff;font-size:10px;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;">✕</span>`;
-
-                div.addEventListener('dragstart', (e) => {
-                    collageDragSrc = i;
-                    e.dataTransfer.effectAllowed = 'move';
-                    div.style.opacity = '0.4';
-                });
-                div.addEventListener('dragend', () => {
-                    collageDragSrc = null;
-                    div.style.opacity = '1';
-                });
-                div.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                });
-                div.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    if (collageDragSrc !== null && collageDragSrc !== i) {
-                        const moved = collageImages.splice(collageDragSrc, 1)[0];
-                        collageImages.splice(i, 0, moved);
-                        renderCollageThumbs();
-                        updateCollagePreview();
-                    }
-                });
-                div.querySelector('span').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    collageImages.splice(i, 1);
-                    renderCollageThumbs();
-                    updateCollagePreview();
-                    document.getElementById('btn-collage').disabled = collageImages.length === 0;
-                    if (!collageImages.length) {
-                        document.getElementById('collage-options').style.display = 'none';
-                        document.getElementById('preview-section-collage').style.display = 'none';
-                        document.getElementById('title-collage').textContent = '选择或拖拽多张图片';
-                    }
-                });
-
-                container.appendChild(div);
+        function setGridPreset(count) {
+            const presetMap = {
+                2: { cols: 2, max: 2 },
+                4: { cols: 2, max: 4 },
+                6: { cols: 3, max: 6 },
+                9: { cols: 3, max: 9 }
+            };
+            const preset = presetMap[count] || presetMap[9];
+            document.getElementById('grid-cols').value = preset.cols;
+            document.getElementById('stitch-unify-w').value = preset.max;
+            [2, 4, 6, 9].forEach(n => {
+                document.getElementById(`grid-preset-${n}`).classList.toggle('active', n === count);
             });
+            updateStitchPreview();
         }
 
         function roundedRectPath(ctx, x, y, w, h, r) {
@@ -2350,31 +2170,78 @@
             ctx.drawImage(img, dx, dy, dw, dh);
         }
 
-        function updateCollagePreview() {
-            if (!collageImages.length) return;
+        function updateStitchPreview() {
+            if (stitchImages.length === 0) return;
 
-            const canvas = document.getElementById('collage-preview-canvas');
+            const canvas = document.getElementById('stitch-preview-canvas');
             const ctx = canvas.getContext('2d');
-            const cols = Math.max(1, Math.min(8, parseInt(document.getElementById('collage-cols').value) || 3));
-            const cell = Math.max(80, Math.min(1200, parseInt(document.getElementById('collage-cell').value) || 360));
-            const gap = Math.max(0, parseInt(document.getElementById('collage-gap').value) || 0);
-            const padding = Math.max(0, parseInt(document.getElementById('collage-padding').value) || 0);
-            const radius = Math.max(0, parseInt(document.getElementById('collage-radius').value) || 0);
-            const bgColor = document.getElementById('collage-bg-color').value;
-            const fit = document.getElementById('collage-fit').value;
-            const rows = Math.ceil(collageImages.length / cols);
+            const gap = parseInt(document.getElementById('stitch-gap').value) || 0;
+            const bgColor = document.getElementById('stitch-bg-color').value;
+            const align = document.getElementById('stitch-align').value;
+            const unifyW = parseInt(document.getElementById('stitch-unify-w').value) || 0;
 
+            if (stitchLayout === 'grid') {
+                updateStitchGridPreview(canvas, ctx, bgColor, gap, unifyW);
+                document.getElementById('preview-section-stitch').style.display = 'block';
+                return;
+            }
+
+            const imgs = stitchImages.map(item => item.img);
+            if (stitchDir === 'vertical') {
+                let targetW = unifyW > 0 ? unifyW : Math.max(...imgs.map(img => img.naturalWidth));
+                const scaledImgs = imgs.map(img => ({ w: targetW, h: Math.round(img.naturalHeight * (targetW / img.naturalWidth)) }));
+                const totalH = scaledImgs.reduce((s, im) => s + im.h, 0) + gap * (imgs.length - 1);
+                canvas.width = targetW;
+                canvas.height = totalH;
+                ctx.fillStyle = bgColor;
+                ctx.fillRect(0, 0, targetW, totalH);
+                let y = 0;
+                imgs.forEach((img, i) => {
+                    const si = scaledImgs[i];
+                    let x = 0;
+                    if (align === 'center') x = (targetW - si.w) / 2;
+                    else if (align === 'end') x = targetW - si.w;
+                    ctx.drawImage(img, x, y, si.w, si.h);
+                    y += si.h + gap;
+                });
+            } else {
+                let targetH = unifyW > 0 ? unifyW : Math.max(...imgs.map(img => img.naturalHeight));
+                const scaledImgs = imgs.map(img => ({ w: Math.round(img.naturalWidth * (targetH / img.naturalHeight)), h: targetH }));
+                const totalW = scaledImgs.reduce((s, im) => s + im.w, 0) + gap * (imgs.length - 1);
+                canvas.width = totalW;
+                canvas.height = targetH;
+                ctx.fillStyle = bgColor;
+                ctx.fillRect(0, 0, totalW, targetH);
+                let x = 0;
+                imgs.forEach((img, i) => {
+                    const si = scaledImgs[i];
+                    let y = 0;
+                    if (align === 'center') y = (targetH - si.h) / 2;
+                    else if (align === 'end') y = targetH - si.h;
+                    ctx.drawImage(img, x, y, si.w, si.h);
+                    x += si.w + gap;
+                });
+            }
+            document.getElementById('preview-section-stitch').style.display = 'block';
+        }
+
+        function updateStitchGridPreview(canvas, ctx, bgColor, gap, maxCount) {
+            const cols = Math.max(1, Math.min(8, parseInt(document.getElementById('grid-cols').value) || 3));
+            const cell = Math.max(80, Math.min(1200, parseInt(document.getElementById('grid-cell').value) || 360));
+            const padding = Math.max(0, parseInt(document.getElementById('grid-padding').value) || 0);
+            const radius = Math.max(0, parseInt(document.getElementById('grid-radius').value) || 0);
+            const fit = document.getElementById('grid-fit').value;
+            const selected = maxCount > 0 ? stitchImages.slice(0, maxCount) : stitchImages;
+            const rows = Math.ceil(selected.length / cols);
             canvas.width = padding * 2 + cols * cell + (cols - 1) * gap;
             canvas.height = padding * 2 + rows * cell + (rows - 1) * gap;
             ctx.fillStyle = bgColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            collageImages.forEach((item, i) => {
+            selected.forEach((item, i) => {
                 const col = i % cols;
                 const row = Math.floor(i / cols);
                 const x = padding + col * (cell + gap);
                 const y = padding + row * (cell + gap);
-
                 ctx.save();
                 roundedRectPath(ctx, x, y, cell, cell, radius);
                 ctx.clip();
@@ -2385,32 +2252,36 @@
                 drawImageInCell(ctx, item.img, x, y, cell, cell, fit);
                 ctx.restore();
             });
-
-            document.getElementById('preview-section-collage').style.display = 'block';
-            document.getElementById('badge-collage').textContent = `${cols}列 / ${collageImages.length}张`;
         }
 
-        const updateCollagePreviewThrottled = rafThrottle(updateCollagePreview);
-        ['collage-cols', 'collage-cell', 'collage-gap', 'collage-padding', 'collage-radius', 'collage-bg-color', 'collage-fit'].forEach(id => {
-            document.getElementById(id).addEventListener('input', updateCollagePreviewThrottled);
-            document.getElementById(id).addEventListener('change', updateCollagePreviewThrottled);
+        const updateStitchPreviewThrottled = rafThrottle(updateStitchPreview);
+        ['stitch-gap', 'stitch-bg-color', 'stitch-align', 'stitch-unify-w', 'grid-cols', 'grid-cell', 'grid-padding', 'grid-radius', 'grid-fit'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateStitchPreviewThrottled);
+            document.getElementById(id).addEventListener('change', updateStitchPreviewThrottled);
         });
 
-        document.getElementById('btn-collage').addEventListener('click', function() {
-            const canvas = document.getElementById('collage-preview-canvas');
+        function downloadStitch(format) {
+            const canvas = document.getElementById('stitch-preview-canvas');
             if (canvas.width === 0) return;
-            const format = document.getElementById('collage-format').value;
-            const mimeType = format === 'jpg' ? 'image/jpeg' : 'image/png';
-            const ext = format === 'jpg' ? '.jpg' : '.png';
+            const gridFormat = stitchLayout === 'grid' ? document.getElementById('grid-format').value : format;
+            const mimeType = gridFormat === 'png' ? 'image/png' : 'image/jpeg';
+            const ext = gridFormat === 'png' ? '.png' : '.jpg';
             const link = document.createElement('a');
             link.href = canvas.toDataURL(mimeType, 0.92);
-            link.download = '骆易家_拼图' + ext;
+            link.download = (stitchLayout === 'grid' ? '骆易家_多宫格拼图' : '骆易家_拼接图') + ext;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-        });
+        }
 
+        document.getElementById('btn-stitch').addEventListener('click', function() {
+            downloadStitch('jpg');
+        });
+        document.getElementById('btn-stitch-png').addEventListener('click', function() {
+            downloadStitch('png');
+        });
     </script>
 </body>
 </html>
+
 
