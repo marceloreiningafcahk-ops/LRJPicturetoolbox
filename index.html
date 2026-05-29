@@ -940,181 +940,125 @@
     </div>
 
     <script>
-        // --- 水印背景：rAF驱动，非线性流动 + 鼠标隆起高亮 ---
+        // --- 水印背景：纹理平铺滚动 + 轻量鼠标高亮 ---
         (function() {
             const canvas = document.getElementById('watermark-canvas');
             if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-
+            const ctx = canvas.getContext('2d', { alpha: true });
             const text = '骆易家';
-            const baseFontSize = 26;
-            const maxFontSize = 42;
-            const stepX = 100;
-            const stepY = 70;
-            const angle = 45 * Math.PI / 180;
-            const influenceRadius = 180; // 鼠标影响半径
-
-            // 基础透明度
-            const lightBase = 0.05;
-            const darkBase = 0.05;
-            const lightHighlight = 0.22;
-            const darkHighlight = 0.25;
-
+            const tileSize = 220;
+            const dprCap = 1.5;
+            let dpr = Math.min(window.devicePixelRatio || 1, dprCap);
+            let w = 0;
+            let h = 0;
+            let pattern = null;
+            let rafId = null;
             let mouseX = -9999;
             let mouseY = -9999;
             let smoothMouseX = -9999;
             let smoothMouseY = -9999;
-            let dpr = window.devicePixelRatio || 1;
-            let w, h;
-            let time = 0;
-            let rafId = null;
-            let lastDrawTs = 0;
-            const targetFps = 12;
-            const frameInterval = 1000 / targetFps;
-            const influenceRadiusSq = influenceRadius * influenceRadius;
-            const baseFontStr = `700 ${baseFontSize}px "Noto Serif SC", serif`;
-            let lastInteractionTs = 0;
-            let needsDraw = true;
+            let lastTs = 0;
+            let offset = 0;
+            const speed = 18; // px/s，慢速持续滚动
+
+            function makePattern() {
+                const isDark = document.documentElement.classList.contains('dark-mode');
+                const tile = document.createElement('canvas');
+                tile.width = tileSize;
+                tile.height = tileSize;
+                const tctx = tile.getContext('2d');
+                tctx.clearRect(0, 0, tileSize, tileSize);
+                tctx.translate(tileSize / 2, tileSize / 2);
+                tctx.rotate(Math.PI / 4);
+                tctx.textAlign = 'center';
+                tctx.textBaseline = 'middle';
+                tctx.font = '700 32px "Noto Serif SC", serif';
+                tctx.fillStyle = isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.05)';
+                tctx.fillText(text, 0, 0);
+                tctx.fillText(text, -tileSize, 0);
+                tctx.fillText(text, tileSize, 0);
+                pattern = ctx.createPattern(tile, 'repeat');
+            }
 
             function resize() {
-                dpr = window.devicePixelRatio || 1;
+                dpr = Math.min(window.devicePixelRatio || 1, dprCap);
                 w = window.innerWidth;
                 h = window.innerHeight;
-                canvas.width = w * dpr;
-                canvas.height = h * dpr;
+                canvas.width = Math.max(1, Math.round(w * dpr));
+                canvas.height = Math.max(1, Math.round(h * dpr));
                 canvas.style.width = w + 'px';
                 canvas.style.height = h + 'px';
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                makePattern();
             }
 
             function draw(ts) {
                 rafId = requestAnimationFrame(draw);
+                if (!lastTs) lastTs = ts;
+                const delta = Math.min(48, ts - lastTs) / 1000;
+                lastTs = ts;
+                offset = (offset + speed * delta) % tileSize;
 
-                const recentlyActive = ts - lastInteractionTs < 900;
-                if (!recentlyActive && !needsDraw) return;
-
-                // 低频节流，水印不需要持续高帧率刷新
-                if (ts - lastDrawTs < frameInterval) return;
-                lastDrawTs = ts;
-                needsDraw = false;
-
-                time += recentlyActive ? 0.01 : 0;
-
-                // 沿45°方向缓慢匀速漂移，周期循环
-                const speed = 0.6;
-                const driftLen = 120;
-                const progress = ((time * speed * 60) % (driftLen * 2));
-                const pingpong = progress < driftLen ? progress : driftLen * 2 - progress;
-                const driftX = pingpong * 0.707;
-                const driftY = pingpong * 0.707;
-
-                // 平滑鼠标跟随(30fps 下系数提高,保持视觉跟随感)
-                if (smoothMouseX < -999) { smoothMouseX = mouseX; smoothMouseY = mouseY; }
-                smoothMouseX += (mouseX - smoothMouseX) * 0.28;
-                smoothMouseY += (mouseY - smoothMouseY) * 0.28;
-
-                const isDark = document.documentElement.classList.contains('dark-mode');
-                const baseAlpha = isDark ? darkBase : lightBase;
-                const highlightAlpha = isDark ? darkHighlight : lightHighlight;
+                if (smoothMouseX < -999) {
+                    smoothMouseX = mouseX;
+                    smoothMouseY = mouseY;
+                }
+                smoothMouseX += (mouseX - smoothMouseX) * 0.16;
+                smoothMouseY += (mouseY - smoothMouseY) * 0.16;
 
                 ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
                 ctx.clearRect(0, 0, w, h);
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-
-                // 基础颜色字符串(远场共用,只算一次)
-                const baseChannel = isDark ? 255 : 0;
-                const baseFillStyle = `rgba(${baseChannel},${baseChannel},${baseChannel},${baseAlpha.toFixed(3)})`;
-
-                // 预计算旋转矩阵分量
-                const cos45 = 0.7071067811865476;
-                const sin45 = 0.7071067811865476;
-
-                // 第一遍:批量画远场 cell(共用 font + fillStyle,无 save/restore)
-                ctx.font = baseFontStr;
-                ctx.fillStyle = baseFillStyle;
-
-                const nearCells = [];
-                for (let row = -2; row * stepY < h + stepY * 2; row++) {
-                    for (let col = -2; col * stepX < w + stepX * 2; col++) {
-                        const bx = col * stepX + driftX;
-                        const by = row * stepY + driftY;
-
-                        const dx = bx - smoothMouseX;
-                        const dy = by - smoothMouseY;
-                        const distSq = dx * dx + dy * dy;
-
-                        if (distSq >= influenceRadiusSq) {
-                            // 远场快速路径:setTransform 一次到位,免 save/restore
-                            ctx.setTransform(cos45 * dpr, sin45 * dpr, -sin45 * dpr, cos45 * dpr, bx * dpr, by * dpr);
-                            ctx.fillText(text, 0, 0);
-                        } else {
-                            nearCells.push(bx, by, distSq);
-                        }
-                    }
+                if (pattern) {
+                    ctx.save();
+                    ctx.translate(offset * 0.707, offset * 0.707);
+                    ctx.fillStyle = pattern;
+                    ctx.fillRect(-tileSize, -tileSize, w + tileSize * 2, h + tileSize * 2);
+                    ctx.restore();
                 }
 
-                // 第二遍:近场 cell(每个有独立 font/fillStyle)
-                const hlR = 120, hlG = 80, hlB = 50;
-                for (let i = 0; i < nearCells.length; i += 3) {
-                    const bx = nearCells[i];
-                    const by = nearCells[i + 1];
-                    const dist = Math.sqrt(nearCells[i + 2]);
-
-                    let t = 1 - dist / influenceRadius;
-                    t = t * t * (3 - 2 * t);
-
-                    const fontSize = baseFontSize + (maxFontSize - baseFontSize) * t;
-                    const alpha = baseAlpha + (highlightAlpha - baseAlpha) * t;
-                    const r = (baseChannel + (hlR - baseChannel) * t) | 0;
-                    const g = (baseChannel + (hlG - baseChannel) * t) | 0;
-                    const b = (baseChannel + (hlB - baseChannel) * t) | 0;
-
-                    ctx.font = `700 ${fontSize.toFixed(1)}px "Noto Serif SC", serif`;
-                    ctx.fillStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
-                    ctx.setTransform(cos45 * dpr, sin45 * dpr, -sin45 * dpr, cos45 * dpr, bx * dpr, by * dpr);
-                    ctx.fillText(text, 0, 0);
+                if (smoothMouseX > -999) {
+                    const isDark = document.documentElement.classList.contains('dark-mode');
+                    const glow = ctx.createRadialGradient(smoothMouseX, smoothMouseY, 0, smoothMouseX, smoothMouseY, 180);
+                    glow.addColorStop(0, isDark ? 'rgba(255,120,50,0.12)' : 'rgba(255,79,0,0.11)');
+                    glow.addColorStop(1, 'rgba(255,79,0,0)');
+                    ctx.fillStyle = glow;
+                    ctx.fillRect(smoothMouseX - 180, smoothMouseY - 180, 360, 360);
                 }
             }
 
             document.addEventListener('mousemove', (e) => {
                 mouseX = e.clientX;
                 mouseY = e.clientY;
-                lastInteractionTs = performance.now();
-                needsDraw = true;
             }, { passive: true });
 
             document.addEventListener('touchmove', (e) => {
                 if (e.touches.length > 0) {
                     mouseX = e.touches[0].clientX;
                     mouseY = e.touches[0].clientY;
-                    lastInteractionTs = performance.now();
-                    needsDraw = true;
                 }
             }, { passive: true });
 
-            // 页面不可见时暂停
             document.addEventListener('visibilitychange', () => {
                 if (document.hidden) {
                     cancelAnimationFrame(rafId);
                     rafId = null;
                 } else if (!rafId) {
+                    lastTs = 0;
                     rafId = requestAnimationFrame(draw);
                 }
             });
 
-            // resize 节流:rAF 内合并多次触发
             let resizeRaf = null;
             window.addEventListener('resize', () => {
                 if (resizeRaf) return;
                 resizeRaf = requestAnimationFrame(() => {
                     resizeRaf = null;
                     resize();
-                    needsDraw = true;
                 });
             });
 
-            // 深色模式切换时无需特殊处理（每帧读取）
-            // 等字体加载后启动
+            window.addEventListener('image-toolbox-theme-change', makePattern);
+
             function start() {
                 resize();
                 rafId = requestAnimationFrame(draw);
@@ -1126,7 +1070,6 @@
                 window.addEventListener('load', start);
             }
         })();
-
         // --- 深色模式相关功能 ---
         const THEME_KEY = 'image-toolbox-theme';
         const DARK_MODE_CLASS = 'dark-mode';
@@ -1166,6 +1109,7 @@
             }
             
             localStorage.setItem(THEME_KEY, theme);
+            window.dispatchEvent(new Event('image-toolbox-theme-change'));
         }
 
         function toggleTheme() {
@@ -2312,5 +2256,6 @@
     </script>
 </body>
 </html>
+
 
 
