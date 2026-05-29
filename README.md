@@ -16,4 +16,6 @@
 
 ## 后续上线
 
-后续可以将本仓库发布到 GitHub Pages、Cloudflare Pages、Vercel 或 Netlify，作为在线网页使用。
+本仓库包含 `index.html`，可以直接通过 GitHub Pages、Cloudflare Pages、Vercel 或 Netlify 发布为在线网页。
+
+如果使用 GitHub Pages，可以选择 `gh-pages` 分支作为发布源。
