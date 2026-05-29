@@ -1778,6 +1778,11 @@
             document.getElementById('crop-w').value = actualCrop.w;
             document.getElementById('crop-h').value = actualCrop.h;
 
+            if (actualCrop.w <= 0 || actualCrop.h <= 0) {
+                cropBox.style.display = 'none';
+                return;
+            }
+
             if(cropImagesObj.length > 0) {
                 const rect = targetImg.getBoundingClientRect();
                 const natW = cropImagesObj[activeCropIndex].img.naturalWidth;
@@ -1872,6 +1877,7 @@
         let startY = 0;
         let initialBox = { left: 0, top: 0, width: 0, height: 0 };
         const minCropDisplaySize = 12;
+        const cropCreateThreshold = 6;
 
         function getEventPos(e) {
             const rect = targetImg.getBoundingClientRect();
@@ -1931,6 +1937,11 @@
             updateCropUIFromActual();
         }
 
+        function clearCropSelection() {
+            actualCrop = { x: 0, y: 0, w: 0, h: 0 };
+            updateCropUIFromActual();
+        }
+
         function startDraw(e) {
             if (!cropImagesObj.length) return;
             e.preventDefault();
@@ -1945,7 +1956,7 @@
             } else if (e.target === cropBox || cropBox.contains(e.target)) {
                 cropDragMode = 'move';
             } else {
-                cropDragMode = 'draw';
+                cropDragMode = 'pending-draw';
                 initialBox = { left: startX, top: startY, width: 0, height: 0 };
             }
         }
@@ -1957,6 +1968,11 @@
             const dx = pos.x - startX;
             const dy = pos.y - startY;
             let box = { ...initialBox };
+
+            if (cropDragMode === 'pending-draw') {
+                if (Math.hypot(dx, dy) < cropCreateThreshold) return;
+                cropDragMode = 'draw';
+            }
 
             if (cropDragMode === 'move') {
                 box.left = initialBox.left + dx;
@@ -1986,6 +2002,12 @@
 
         function endDraw() {
             if (!cropDragMode) return;
+            if (cropDragMode === 'pending-draw') {
+                cropDragMode = null;
+                cropResizeDir = '';
+                clearCropSelection();
+                return;
+            }
             cropDragMode = null;
             cropResizeDir = '';
             syncActualCropFromDisplay();
