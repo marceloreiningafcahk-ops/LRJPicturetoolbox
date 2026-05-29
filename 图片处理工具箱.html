@@ -526,17 +526,26 @@
 
         .crop-corner {
             position: absolute;
-            width: 10px;
-            height: 10px;
+            width: 14px;
+            height: 14px;
             background-color: var(--accent-orange);
             border-radius: 50%;
-            pointer-events: none;
+            pointer-events: auto;
             box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         }
-        .corner-tl { top: -5px; left: -5px; }
-        .corner-tr { top: -5px; right: -5px; }
-        .corner-bl { bottom: -5px; left: -5px; }
-        .corner-br { bottom: -5px; right: -5px; }
+        .corner-tl { top: -7px; left: -7px; cursor: nwse-resize; }
+        .corner-tr { top: -7px; right: -7px; cursor: nesw-resize; }
+        .corner-bl { bottom: -7px; left: -7px; cursor: nesw-resize; }
+        .corner-br { bottom: -7px; right: -7px; cursor: nwse-resize; }
+
+        .crop-edge {
+            position: absolute;
+            pointer-events: auto;
+        }
+        .edge-t { top: -6px; left: 10px; right: 10px; height: 12px; cursor: ns-resize; }
+        .edge-r { top: 10px; right: -6px; bottom: 10px; width: 12px; cursor: ew-resize; }
+        .edge-b { bottom: -6px; left: 10px; right: 10px; height: 12px; cursor: ns-resize; }
+        .edge-l { top: 10px; left: -6px; bottom: 10px; width: 12px; cursor: ew-resize; }
 
         .hint {
             font-family: var(--font-sans);
@@ -765,10 +774,14 @@
                     <div class="crop-interactive-container" id="crop-container">
                         <img id="crop-target-img" src="" alt="">
                         <div id="crop-box-overlay">
-                            <div class="crop-corner corner-tl"></div>
-                            <div class="crop-corner corner-tr"></div>
-                            <div class="crop-corner corner-bl"></div>
-                            <div class="crop-corner corner-br"></div>
+                            <div class="crop-edge edge-t" data-resize="n"></div>
+                            <div class="crop-edge edge-r" data-resize="e"></div>
+                            <div class="crop-edge edge-b" data-resize="s"></div>
+                            <div class="crop-edge edge-l" data-resize="w"></div>
+                            <div class="crop-corner corner-tl" data-resize="nw"></div>
+                            <div class="crop-corner corner-tr" data-resize="ne"></div>
+                            <div class="crop-corner corner-bl" data-resize="sw"></div>
+                            <div class="crop-corner corner-br" data-resize="se"></div>
                         </div>
                     </div>
                 </div>
@@ -1846,11 +1859,13 @@
             });
         });
 
-        // --- 鼠标拖拽逻辑 ---
-        let isDrawing = false;
-        let isMoving = false;
-        let startX, startY;
-        let initialBoxLeft, initialBoxTop;
+        // --- 鼠标/触摸裁切框调整逻辑 ---
+        let cropDragMode = null; // 'draw' | 'move' | 'resize'
+        let cropResizeDir = '';
+        let startX = 0;
+        let startY = 0;
+        let initialBox = { left: 0, top: 0, width: 0, height: 0 };
+        const minCropDisplaySize = 12;
 
         function getEventPos(e) {
             const rect = targetImg.getBoundingClientRect();
@@ -1860,94 +1875,114 @@
             } else {
                 clientX = e.clientX; clientY = e.clientY;
             }
-            return { x: clientX - rect.left, y: clientY - rect.top, rect: rect };
+            return {
+                x: Math.max(0, Math.min(clientX - rect.left, rect.width)),
+                y: Math.max(0, Math.min(clientY - rect.top, rect.height)),
+                rect
+            };
         }
 
-        function startDraw(e) {
-            if(!cropImagesObj.length) return;
-            e.preventDefault();
-            const pos = getEventPos(e);
-            
-            if (e.target === cropBox || cropBox.contains(e.target)) {
-                isMoving = true;
-                startX = pos.x;
-                startY = pos.y;
-                initialBoxLeft = parseFloat(cropBox.style.left) || 0;
-                initialBoxTop = parseFloat(cropBox.style.top) || 0;
-            } else {
-                isDrawing = true;
-                startX = pos.x;
-                startY = pos.y;
-                cropBox.style.display = 'none';
-            }
+        function getCurrentBoxDisplay() {
+            return {
+                left: parseFloat(cropBox.style.left) || 0,
+                top: parseFloat(cropBox.style.top) || 0,
+                width: parseFloat(cropBox.style.width) || 0,
+                height: parseFloat(cropBox.style.height) || 0
+            };
         }
 
-        function doingDraw(e) {
-            if (!isDrawing && !isMoving) return;
-            e.preventDefault();
-            const pos = getEventPos(e);
+        function applyBoxDisplay(box, rect) {
+            let left = Math.max(0, Math.min(box.left, rect.width));
+            let top = Math.max(0, Math.min(box.top, rect.height));
+            let width = Math.max(minCropDisplaySize, box.width);
+            let height = Math.max(minCropDisplaySize, box.height);
 
-            if (isMoving) {
-                const deltaX = pos.x - startX;
-                const deltaY = pos.y - startY;
-                const boxWidth = parseFloat(cropBox.style.width) || 0;
-                const boxHeight = parseFloat(cropBox.style.height) || 0;
+            if (left + width > rect.width) width = Math.max(minCropDisplaySize, rect.width - left);
+            if (top + height > rect.height) height = Math.max(minCropDisplaySize, rect.height - top);
 
-                let newLeft = initialBoxLeft + deltaX;
-                let newTop = initialBoxTop + deltaY;
-
-                newLeft = Math.max(0, Math.min(newLeft, pos.rect.width - boxWidth));
-                newTop = Math.max(0, Math.min(newTop, pos.rect.height - boxHeight));
-
-                cropBox.style.left = newLeft + 'px';
-                cropBox.style.top = newTop + 'px';
-                
-            } else if (isDrawing) {
-                let currX = Math.max(0, Math.min(pos.x, pos.rect.width));
-                let currY = Math.max(0, Math.min(pos.y, pos.rect.height));
-
-                const left = Math.min(startX, currX);
-                const top = Math.min(startY, currY);
-                const width = Math.abs(currX - startX);
-                const height = Math.abs(currY - startY);
-
-                cropBox.style.left = left + 'px';
-                cropBox.style.top = top + 'px';
-                cropBox.style.width = width + 'px';
-                cropBox.style.height = height + 'px';
-                cropBox.style.display = 'block';
-            }
+            cropBox.style.left = left + 'px';
+            cropBox.style.top = top + 'px';
+            cropBox.style.width = width + 'px';
+            cropBox.style.height = height + 'px';
+            cropBox.style.display = 'block';
         }
 
-        function endDraw(e) {
-            if (!isDrawing && !isMoving) return;
-            isDrawing = false;
-            isMoving = false;
-            
+        function syncActualCropFromDisplay() {
+            if (!cropImagesObj.length) return;
             const rect = targetImg.getBoundingClientRect();
             const natW = cropImagesObj[activeCropIndex].img.naturalWidth;
             const natH = cropImagesObj[activeCropIndex].img.naturalHeight;
             const ratioX = natW / rect.width;
             const ratioY = natH / rect.height;
-
-            const boxLeft = parseFloat(cropBox.style.left) || 0;
-            const boxTop = parseFloat(cropBox.style.top) || 0;
-            const boxWidth = parseFloat(cropBox.style.width) || 0;
-            const boxHeight = parseFloat(cropBox.style.height) || 0;
-
-            if(boxWidth < 5 || boxHeight < 5) {
-                updateCropUIFromActual();
-                return;
-            }
+            const box = getCurrentBoxDisplay();
 
             actualCrop = {
-                x: Math.round(boxLeft * ratioX),
-                y: Math.round(boxTop * ratioY),
-                w: Math.round(boxWidth * ratioX),
-                h: Math.round(boxHeight * ratioY)
+                x: Math.round(box.left * ratioX),
+                y: Math.round(box.top * ratioY),
+                w: Math.round(box.width * ratioX),
+                h: Math.round(box.height * ratioY)
             };
-            
             updateCropUIFromActual();
+        }
+
+        function startDraw(e) {
+            if (!cropImagesObj.length) return;
+            e.preventDefault();
+            const pos = getEventPos(e);
+            startX = pos.x;
+            startY = pos.y;
+            initialBox = getCurrentBoxDisplay();
+            cropResizeDir = e.target && e.target.dataset ? (e.target.dataset.resize || '') : '';
+
+            if (cropResizeDir) {
+                cropDragMode = 'resize';
+            } else if (e.target === cropBox || cropBox.contains(e.target)) {
+                cropDragMode = 'move';
+            } else {
+                cropDragMode = 'draw';
+                initialBox = { left: startX, top: startY, width: 0, height: 0 };
+            }
+        }
+
+        function doingDraw(e) {
+            if (!cropDragMode) return;
+            e.preventDefault();
+            const pos = getEventPos(e);
+            const dx = pos.x - startX;
+            const dy = pos.y - startY;
+            let box = { ...initialBox };
+
+            if (cropDragMode === 'move') {
+                box.left = initialBox.left + dx;
+                box.top = initialBox.top + dy;
+                box.left = Math.max(0, Math.min(box.left, pos.rect.width - box.width));
+                box.top = Math.max(0, Math.min(box.top, pos.rect.height - box.height));
+            } else if (cropDragMode === 'resize') {
+                let left = initialBox.left;
+                let top = initialBox.top;
+                let right = initialBox.left + initialBox.width;
+                let bottom = initialBox.top + initialBox.height;
+
+                if (cropResizeDir.includes('w')) left = Math.max(0, Math.min(pos.x, right - minCropDisplaySize));
+                if (cropResizeDir.includes('e')) right = Math.min(pos.rect.width, Math.max(pos.x, left + minCropDisplaySize));
+                if (cropResizeDir.includes('n')) top = Math.max(0, Math.min(pos.y, bottom - minCropDisplaySize));
+                if (cropResizeDir.includes('s')) bottom = Math.min(pos.rect.height, Math.max(pos.y, top + minCropDisplaySize));
+
+                box = { left, top, width: right - left, height: bottom - top };
+            } else {
+                const left = Math.min(startX, pos.x);
+                const top = Math.min(startY, pos.y);
+                box = { left, top, width: Math.abs(pos.x - startX), height: Math.abs(pos.y - startY) };
+            }
+
+            applyBoxDisplay(box, pos.rect);
+        }
+
+        function endDraw() {
+            if (!cropDragMode) return;
+            cropDragMode = null;
+            cropResizeDir = '';
+            syncActualCropFromDisplay();
         }
 
         cropContainer.addEventListener('mousedown', startDraw);
@@ -1957,7 +1992,6 @@
         cropContainer.addEventListener('touchstart', startDraw, {passive: false});
         window.addEventListener('touchmove', doingDraw, {passive: false});
         window.addEventListener('touchend', endDraw);
-
         // 分别下载
         document.getElementById('btn-crop').addEventListener('click', function() {
             const q = getCropOutputsQueue();
@@ -2280,6 +2314,7 @@
     </script>
 </body>
 </html>
+
 
 
 
